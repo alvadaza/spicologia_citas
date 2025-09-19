@@ -148,3 +148,25 @@ supabase
     }
   )
   .subscribe();
+let deferredPrompt; // Guardará el evento de instalación
+
+window.addEventListener("beforeinstallprompt", (e) => {
+  // Evita que el navegador muestre el banner por defecto
+  e.preventDefault();
+  deferredPrompt = e;
+
+  // Muestra tu propio mensaje o botón
+  const installBtn = document.getElementById("btn-instalar");
+  installBtn.style.display = "block";
+
+  installBtn.addEventListener("click", async () => {
+    installBtn.style.display = "none"; // Oculta el botón
+
+    if (deferredPrompt) {
+      deferredPrompt.prompt(); // Muestra el prompt de instalación
+      const { outcome } = await deferredPrompt.userChoice;
+      console.log(`Usuario eligió: ${outcome}`);
+      deferredPrompt = null; // Resetea para evitar duplicados
+    }
+  });
+});
