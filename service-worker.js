@@ -4,8 +4,8 @@ const urlsToCache = [
   "/index.html",
   "/css/styles.css",
   "/js/citas.js",
-  "/icons/icon-192.png",
-  "/icons/icon-512.png",
+  "/icon/icon-192.png",
+  "/icon/icon-512.png",
 ];
 
 // Instalación del service worker y cacheo de recursos
