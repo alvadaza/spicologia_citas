@@ -11,21 +11,23 @@ const logoutBtn = document.getElementById("logout-btn");
 
 let citas = [];
 
+// 🔧 PRIMERO funciones para cargar y actualizar
 async function cargarCitas() {
   let query = supabase
-    .from("citas")
+    .from("citas", { head: false }) // 👈 Fuerza a traer datos completos)
     .select("*")
     .order("fecha", { ascending: true });
 
   if (filtroFecha.value) query = query.eq("fecha", filtroFecha.value);
   if (filtroEstado.value) query = query.eq("estado", filtroEstado.value);
 
-  const { data, error } = await query;
+  const { data, error } = await query.throwOnError();
   if (error) {
     console.error("Error cargando citas:", error);
     return;
   }
-  citas = data;
+
+  citas = data ? [...data] : [];
   actualizarEstadisticas();
   renderizarTabla();
 }
@@ -34,9 +36,6 @@ function actualizarEstadisticas() {
   document.getElementById("total-citas").textContent = citas.length;
   document.getElementById("citas-confirmadas").textContent = citas.filter(
     (c) => c.estado === "confirmada"
-  ).length;
-  document.getElementById("citas-canceladas").textContent = citas.filter(
-    (c) => c.estado === "cancelada"
   ).length;
   document.getElementById("citas-pendientes").textContent = citas.filter(
     (c) => c.estado === "pendiente" || !c.estado
@@ -56,42 +55,66 @@ function renderizarTabla() {
   citasFiltradas.forEach((cita) => {
     const fila = document.createElement("tr");
     fila.innerHTML = `
-          <td>${cita.nombre}</td>
-          <td>${cita.email}</td>
-          <td>${cita.telefono || ""}</td>
-          <td>${cita.fecha}</td>
-          <td>${cita.hora}</td>
-          <td>${cita.motivo || ""}</td>
-          <td><span class="estado ${cita.estado || "pendiente"}">${
+      <td>${cita.nombre}</td>
+      <td>${cita.email}</td>
+      <td>${cita.telefono || ""}</td>
+      <td>${cita.fecha}</td>
+      <td>${cita.hora}</td>
+      <td>${cita.motivo || ""}</td>
+      <td><span class="estado ${cita.estado || "pendiente"}">${
       cita.estado || "pendiente"
     }</span></td>
-          <td>
-            <button class="btn-accion confirmar" data-id="${
-              cita.id
-            }">✅</button>
-            <button class="btn-accion cancelar" data-id="${cita.id}">❌</button>
-          </td>
-        `;
+      <td>
+        <button class="btn-accion confirmar" data-id="${cita.id}">✅</button>
+        <button class="btn-accion cancelar" data-id="${cita.id}">❌</button>
+      </td>
+    `;
     tablaBody.appendChild(fila);
   });
 }
-
-tablaBody.addEventListener("click", async (e) => {
-  if (e.target.classList.contains("confirmar")) {
-    await actualizarEstado(e.target.dataset.id, "confirmada");
-  } else if (e.target.classList.contains("cancelar")) {
-    await actualizarEstado(e.target.dataset.id, "cancelada");
-  }
-});
 
 async function actualizarEstado(id, nuevoEstado) {
   const { error } = await supabase
     .from("citas")
     .update({ estado: nuevoEstado })
     .eq("id", id);
-  if (error) console.error("Error actualizando estado:", error);
-  cargarCitas();
+
+  if (error) {
+    console.error("Error actualizando estado:", error);
+    return;
+  }
+
+  // Refrescamos el array local sin esperar la recarga
+  citas = citas.map((c) => (c.id == id ? { ...c, estado: nuevoEstado } : c));
+  actualizarEstadisticas();
+  renderizarTabla();
+
+  await cargarCitas(); // asegura sincronización con DB
 }
+
+async function eliminarCita(id) {
+  const { error } = await supabase.from("citas").delete().eq("id", id);
+  if (error) {
+    console.error("Error eliminando cita:", error);
+    return;
+  }
+
+  // Eliminamos localmente
+  citas = citas.filter((c) => c.id != id);
+  actualizarEstadisticas();
+  renderizarTabla();
+
+  await cargarCitas();
+}
+
+// 🔧 AHORA asignamos eventos (ya existen las funciones)
+tablaBody.addEventListener("click", async (e) => {
+  if (e.target.classList.contains("confirmar")) {
+    await actualizarEstado(e.target.dataset.id, "confirmada");
+  } else if (e.target.classList.contains("cancelar")) {
+    await eliminarCita(e.target.dataset.id);
+  }
+});
 
 btnFiltrar.addEventListener("click", cargarCitas);
 btnLimpiar.addEventListener("click", () => {
@@ -102,7 +125,6 @@ btnLimpiar.addEventListener("click", () => {
 });
 
 buscador.addEventListener("input", renderizarTabla);
-
 btnExportar.addEventListener("click", () => exportarExcel(citas));
 
 logoutBtn.addEventListener("click", async () => {
@@ -121,52 +143,19 @@ function exportarExcel(data) {
     }
   );
 }
-/*
-(async () => {
-  const { data } = await supabase.auth.getSession();
-  if (!data.session) window.location.href = "index.html";
-  else cargarCitas();
-})();
-*/
-// 👇 Esto hace que se carguen las citas al abrir la página
-// 👇 Cargar las citas al inicio
+
+// 👇 Ejecutar carga inicial
 document.addEventListener("DOMContentLoaded", cargarCitas);
 
-// 👇 Suscripción en tiempo real a cambios en la tabla "citas"
+// 👇 Suscripción en tiempo real
 supabase
-  .channel("citas-changes") // nombre de canal (puedes poner cualquiera)
+  .channel("citas-changes")
   .on(
     "postgres_changes",
-    {
-      event: "*", // escucha inserts, updates y deletes
-      schema: "public",
-      table: "citas",
-    },
+    { event: "*", schema: "public", table: "citas" },
     (payload) => {
       console.log("Cambio detectado en citas:", payload);
-      cargarCitas(); // recarga la tabla al instante
+      cargarCitas();
     }
   )
   .subscribe();
-let deferredPrompt; // Guardará el evento de instalación
-
-window.addEventListener("beforeinstallprompt", (e) => {
-  // Evita que el navegador muestre el banner por defecto
-  e.preventDefault();
-  deferredPrompt = e;
-
-  // Muestra tu propio mensaje o botón
-  const installBtn = document.getElementById("btn-instalar");
-  installBtn.style.display = "block";
-
-  installBtn.addEventListener("click", async () => {
-    installBtn.style.display = "none"; // Oculta el botón
-
-    if (deferredPrompt) {
-      deferredPrompt.prompt(); // Muestra el prompt de instalación
-      const { outcome } = await deferredPrompt.userChoice;
-      console.log(`Usuario eligió: ${outcome}`);
-      deferredPrompt = null; // Resetea para evitar duplicados
-    }
-  });
-});
