@@ -161,7 +161,7 @@ supabase
   .subscribe();
 
 let deferredPrompt;
-const btnInstalar = document.getElementById("btnInstalar");
+const btnInstalar = document.getElementById("btn-instalar");
 
 // Detectar si ya está instalada
 window.addEventListener("appinstalled", () => {
@@ -171,26 +171,21 @@ window.addEventListener("appinstalled", () => {
 
 // Evento que indica que la PWA se puede instalar
 window.addEventListener("beforeinstallprompt", (event) => {
-  event.preventDefault(); // evita el popup automático
+  event.preventDefault();
   deferredPrompt = event;
 
-  // Mostrar botón SOLO si NO está instalada
-  if (window.matchMedia("(display-mode: standalone)").matches === false) {
+  if (!window.matchMedia("(display-mode: standalone)").matches) {
     btnInstalar.style.display = "block";
   }
 
   btnInstalar.onclick = async () => {
     btnInstalar.style.display = "none";
     deferredPrompt.prompt();
-
-    const choice = await deferredPrompt.userChoice;
-    console.log("Instalación:", choice.outcome);
-
     deferredPrompt = null;
   };
 });
 
-// Detectar si ya está en modo standalone (instalada y abierta)
+// Ocultar botón si ya está instalada
 if (window.matchMedia("(display-mode: standalone)").matches) {
   btnInstalar.style.display = "none";
 }
