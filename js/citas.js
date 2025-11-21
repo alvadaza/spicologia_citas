@@ -159,23 +159,38 @@ supabase
     }
   )
   .subscribe();
+
 let deferredPrompt;
 const btnInstalar = document.getElementById("btnInstalar");
 
+// Detectar si ya está instalada
+window.addEventListener("appinstalled", () => {
+  console.log("PWA instalada");
+  btnInstalar.style.display = "none";
+});
+
+// Evento que indica que la PWA se puede instalar
 window.addEventListener("beforeinstallprompt", (event) => {
-  event.preventDefault(); // evita que Chrome muestre el popup automático
+  event.preventDefault(); // evita el popup automático
   deferredPrompt = event;
 
-  // mostramos el botón
-  btnInstalar.style.display = "block";
+  // Mostrar botón SOLO si NO está instalada
+  if (window.matchMedia("(display-mode: standalone)").matches === false) {
+    btnInstalar.style.display = "block";
+  }
 
-  btnInstalar.addEventListener("click", async () => {
+  btnInstalar.onclick = async () => {
     btnInstalar.style.display = "none";
-    deferredPrompt.prompt(); // abre el cuadro de instalación
+    deferredPrompt.prompt();
 
-    const result = await deferredPrompt.userChoice;
-    console.log("Resultado instalación:", result);
+    const choice = await deferredPrompt.userChoice;
+    console.log("Instalación:", choice.outcome);
 
     deferredPrompt = null;
-  });
+  };
 });
+
+// Detectar si ya está en modo standalone (instalada y abierta)
+if (window.matchMedia("(display-mode: standalone)").matches) {
+  btnInstalar.style.display = "none";
+}
