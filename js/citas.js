@@ -159,3 +159,23 @@ supabase
     }
   )
   .subscribe();
+let deferredPrompt;
+const btnInstalar = document.getElementById("btnInstalar");
+
+window.addEventListener("beforeinstallprompt", (event) => {
+  event.preventDefault(); // evita que Chrome muestre el popup automático
+  deferredPrompt = event;
+
+  // mostramos el botón
+  btnInstalar.style.display = "block";
+
+  btnInstalar.addEventListener("click", async () => {
+    btnInstalar.style.display = "none";
+    deferredPrompt.prompt(); // abre el cuadro de instalación
+
+    const result = await deferredPrompt.userChoice;
+    console.log("Resultado instalación:", result);
+
+    deferredPrompt = null;
+  });
+});
